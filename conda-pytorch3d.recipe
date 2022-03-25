@@ -1,0 +1,22 @@
+Bootstrap: docker
+From: continuumio/miniconda3
+#from : xyp8023/miniconda3-gpu
+%files
+    environment.yaml
+
+%post
+    /opt/conda/bin/conda env create --file environment.yaml
+    git clone https://github.com/xyp8023/pytorch3d.git
+    cd pytorch3d && git checkout sonar && cp pytorch3d/renderer/__init__.py /opt/conda/envs/pytorch3dclean/lib/python3.7/site-packages/pytorch3d/renderer/__init__.py &&  cp pytorch3d/renderer/blending.py /opt/conda/envs/pytorch3dclean/lib/python3.7/site-packages/pytorch3d/renderer/blending.py &&  cp pytorch3d/renderer/mesh/__init__.py /opt/conda/envs/pytorch3dclean/lib/python3.7/site-packages/pytorch3d/renderer/mesh/__init__.py  &&  cp pytorch3d/renderer/mesh/renderer.py /opt/conda/envs/pytorch3dclean/lib/python3.7/site-packages/pytorch3d/renderer/mesh/renderer.py   &&  cp pytorch3d/renderer/mesh/shader.py /opt/conda/envs/pytorch3dclean/lib/python3.7/site-packages/pytorch3d/renderer/mesh/shader.py &&  cp pytorch3d/renderer/mesh/shading.py /opt/conda/envs/pytorch3dclean/lib/python3.7/site-packages/pytorch3d/renderer/mesh/shading.py 
+ 
+    #/opt/conda/envs/pytorch3dclean/bin/python3.7 -m unittest discover -p test_blending.py
+    #export PATH=/opt/conda/envs/pytorch3dclean/bin:$PATH
+    #export CC=/opt/conda/envs/pytorch3dclean/bin/x86_64-conda_cos6-linux-gnu-gcc && export CXX=/opt/conda/envs/pytorch3dclean/bin/x86_64-conda_cos6-linux-gnu-g++ && export CUB_HOME=$PWD/cub-1.10.0 && export FORCE_CUDA=1 && export CUDA_HOME=/usr/local/cuda && /opt/conda/envs/pytorch3dclean/bin/pip install -v -e .
+    #echo '. /opt/conda/etc/profile.d/conda.sh' >> $SINGULARITY_ENVIRONMENT && echo 'conda activate pytorch3d_clean' >> $SINGULARITY_ENVIRONMENT
+    #which g++
+    #conda activate pytorch3d_clean
+    #pip --version
+    #/opt/conda/envs/pytorch3d_clean/bin/pip install -e .
+
+%runscript
+    exec /opt/conda/envs/$(head -n 1 environment.yaml | cut -f 2 -d ' ')/bin/'$@'
