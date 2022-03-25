@@ -211,6 +211,7 @@ class SoftPhongShader4SSS(nn.Module):
         texels = meshes.sample_textures(fragments)
         lights = kwargs.get("lights", self.lights)
         materials = kwargs.get("materials", self.materials)
+        blend_params = kwargs.get("blend_params", self.blend_params)
         
         colors = diffuse_phong_shading_4sss(
             meshes=meshes,
