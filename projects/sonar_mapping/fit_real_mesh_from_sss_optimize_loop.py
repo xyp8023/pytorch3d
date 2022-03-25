@@ -1,8 +1,8 @@
 import os
 import torch
 import numpy as np
-from tqdm.notebook import tqdm
-import imageio
+from tqdm import tqdm
+#import imageio
 import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
@@ -38,7 +38,7 @@ import math
 
 from math import radians, degrees
 import json
-import cv2 
+#import cv2 
 import random
 from scipy.ndimage.filters import gaussian_filter
 
@@ -78,14 +78,14 @@ else:
     device = torch.device("cpu")
 
 # Set paths
-DATA_DIR = "./data"
+DATA_DIR = "/cephyr/users/yipingx/Alvis/repos/pytorch3d/projects/sonar_mapping/" + "data"
 
 # obj_filename = os.path.join(DATA_DIR, "cow_mesh/cow.obj")
 res = 0.5
 # V = np.load("/media/yipingx/SSD/Data/gothernburg/gothernburg/cereal_file/V_res_0.5m.npy")
 # F = np.load("/media/yipingx/SSD/Data/gothernburg/gothernburg/cereal_file/F_res_0.5m.npy")
 
-heightmap_gt, bounds = np.load(DATA_DIR + "height_map_from_dtm.npz", encoding="latin1",allow_pickle=True)["arr_0"]
+heightmap_gt, bounds = np.load(DATA_DIR + os.sep+"height_map_from_dtm.npz", encoding="latin1",allow_pickle=True)["arr_0"]
 
 # heightmap = -np.ones_like(heightmap_gt) * 20.0
 heightmap = gaussian_filter(heightmap_gt, sigma=10)
@@ -93,7 +93,9 @@ heightmap = gaussian_filter(heightmap_gt, sigma=10)
 # heightmap = heightmap_gt.copy()
 # V = np.load("/media/yipingx/SSD/Data/gothernburg/gothernburg/cereal_file/V_res_10m.npy")
 # F = np.load("/media/yipingx/SSD/Data/gothernburg/gothernburg/cereal_file/F_res_10m.npy")
-V,F=mesh_map.mesh_from_height_map(heightmap, bounds)
+#V,F=mesh_map.mesh_from_height_map(heightmap, bounds)
+V = np.load(DATA_DIR+os.sep+"V_res_0.5m.npy")
+F = np.load(DATA_DIR+os.sep+"F_res_0.5m.npy")
 # mesh_map.show_mesh(V,F)
 verts = torch.from_numpy(V).float()
 faces = torch.from_numpy(F).long()
@@ -171,7 +173,7 @@ losses = {"sss": {"weight": 1000.0, "values": []},
 print("losses weight ", losses )
 image_size_ = 3
 
-RESULTS_DIR = "./results-real-data" + "-H_select-"+ str(H_select) + "-image_size_-" + str(image_size_) +"-faces_per_pixel"+str(faces_per_pixel) +"-gamma"+str(gamma)+"-sigma"+str(sigma)
+RESULTS_DIR = "/cephyr/users/yipingx/Alvis/repos/pytorch3d/projects/sonar_mapping/" + "results-real-data" + "-H_select-"+ str(H_select) + "-image_size_-" + str(image_size_) +"-faces_per_pixel"+str(faces_per_pixel) +"-gamma"+str(gamma)+"-sigma"+str(sigma)
 
 if not os.path.exists(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
@@ -193,7 +195,7 @@ def update_mesh_shape_prior_losses(mesh, loss):
 image_size_ = 3
 bin_size=36
 # SAVE_DIR = "./real-data" + "-H_select-"+ str(H_select) + "-image_size_-" + str(image_size_) +"-faces_per_pixel"+str(faces_per_pixel) +"-gamma"+str(gamma)+"-sigma"+str(sigma)
-SAVE_DIR = DATA_DIR
+SAVE_DIR = DATA_DIR 
 
 if not os.path.exists(SAVE_DIR):
     os.makedirs(SAVE_DIR)
@@ -244,14 +246,14 @@ deform_verts = torch.full(verts_shape, 0.0, device=device, requires_grad=True)
 # The optimizer
 # optimizer = torch.optim.SGD([deform_verts], lr=1.0, momentum=0.9)
 optimizer = torch.optim.Adam([deform_verts], lr=0.2)
-Niter = 50
+Niter = 2
 loop = tqdm(range(Niter))
 
 plot_period = 1
 lines = {15:600,18:400, 26:1000, 64:500} # len: 1686, 2509, 2160, 1583
 
 clip = 1e5
-batch_size = 32
+batch_size = 1024
 with torch.autograd.set_detect_anomaly(True):  
     for i in loop:
         for line, start in lines.items():
