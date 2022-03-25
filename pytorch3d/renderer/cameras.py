@@ -36,10 +36,13 @@ class CamerasBase(TensorProperties):
         and translation (T)
     - NDC coordinate system: This is the normalized coordinate system that confines
         in a volume the rendered part of the object or scene. Also known as view volume.
-        Given the PyTorch3D convention, (+1, +1, znear) is the top left near corner,
-        and (-1, -1, zfar) is the bottom right far corner of the volume.
+        For square images, given the PyTorch3D convention, (+1, +1, znear)
+        is the top left near corner, and (-1, -1, zfar) is the bottom right far
+        corner of the volume.
         The transformation from view --> NDC happens after applying the camera
         projection matrix (P) if defined in NDC space.
+        For non square images, we scale the points such that smallest side
+        has range [-1, 1] and the largest side has range [-u, u], with u > 1.
     - Screen coordinate system: This is another representation of the view volume with
         the XY coordinates defined in image space instead of a normalized space.
 
@@ -127,6 +130,10 @@ class CamerasBase(TensorProperties):
                 coordinates using the camera extrinsics `R` and `T`.
                 `False` ignores `R` and `T` and unprojects to
                 the camera view coordinates.
+            from_ndc: If `False` (default), assumes xy part of input is in
+                NDC space if self.in_ndc(), otherwise in screen space. If
+                `True`, assumes xy is in NDC space even if the camera
+                is defined in screen space.
 
         Returns
             new_points: unprojected points with the same shape as `xy_depth`.
@@ -225,7 +232,7 @@ class CamerasBase(TensorProperties):
             eps: If eps!=None, the argument is used to clamp the
                 divisor in the homogeneous normalization of the points
                 transformed to the ndc space. Please see
-                `transforms.Transform3D.transform_points` for details.
+                `transforms.Transform3d.transform_points` for details.
 
                 For `CamerasBase.transform_points`, setting `eps > 0`
                 stabilizes gradients since it leads to avoiding division
@@ -243,7 +250,8 @@ class CamerasBase(TensorProperties):
         Returns the transform from camera projection space (screen or NDC) to NDC space.
         For cameras that can be specified in screen space, this transform
         allows points to be converted from screen to NDC space.
-        The default transform scales the points from [0, W-1]x[0, H-1] to [-1, 1].
+        The default transform scales the points from [0, W-1]x[0, H-1]
+        to [-1, 1]x[-u, u] or [-u, u]x[-1, 1] where u > 1 is the aspect ratio of the image.
         This function should be modified per camera definitions if need be,
         e.g. for Perspective/Orthographic cameras we provide a custom implementation.
         This transform assumes PyTorch3D coordinate system conventions for
@@ -280,7 +288,7 @@ class CamerasBase(TensorProperties):
             eps: If eps!=None, the argument is used to clamp the
                 divisor in the homogeneous normalization of the points
                 transformed to the ndc space. Please see
-                `transforms.Transform3D.transform_points` for details.
+                `transforms.Transform3d.transform_points` for details.
 
                 For `CamerasBase.transform_points`, setting `eps > 0`
                 stabilizes gradients since it leads to avoiding division
@@ -310,7 +318,7 @@ class CamerasBase(TensorProperties):
             eps: If eps!=None, the argument is used to clamp the
                 divisor in the homogeneous normalization of the points
                 transformed to the ndc space. Please see
-                `transforms.Transform3D.transform_points` for details.
+                `transforms.Transform3d.transform_points` for details.
 
                 For `CamerasBase.transform_points`, setting `eps > 0`
                 stabilizes gradients since it leads to avoiding division
@@ -995,12 +1003,27 @@ class PerspectiveCameras(CamerasBase):
         return transform
 
     def unproject_points(
-        self, xy_depth: torch.Tensor, world_coordinates: bool = True, **kwargs
+        self,
+        xy_depth: torch.Tensor,
+        world_coordinates: bool = True,
+        from_ndc: bool = False,
+        **kwargs
     ) -> torch.Tensor:
+        """
+        Args:
+            from_ndc: If `False` (default), assumes xy part of input is in
+                NDC space if self.in_ndc(), otherwise in screen space. If
+                `True`, assumes xy is in NDC space even if the camera
+                is defined in screen space.
+        """
         if world_coordinates:
             to_camera_transform = self.get_full_projection_transform(**kwargs)
         else:
             to_camera_transform = self.get_projection_transform(**kwargs)
+        if from_ndc:
+            to_camera_transform = to_camera_transform.compose(
+                self.get_ndc_camera_transform()
+            )
 
         unprojection_transform = to_camera_transform.inverse()
         xy_inv_depth = torch.cat(
@@ -1026,6 +1049,8 @@ class PerspectiveCameras(CamerasBase):
         If the camera is defined already in NDC space, the transform is identity.
         For cameras defined in screen space, we adjust the principal point computation
         which is defined in the image space (commonly) and scale the points to NDC space.
+
+        This transform leaves the depth unchanged.
 
         Important: This transforms assumes PyTorch3D conventions for the input points,
         i.e. +X left, +Y up.
@@ -1196,12 +1221,27 @@ class OrthographicCameras(CamerasBase):
         return transform
 
     def unproject_points(
-        self, xy_depth: torch.Tensor, world_coordinates: bool = True, **kwargs
+        self,
+        xy_depth: torch.Tensor,
+        world_coordinates: bool = True,
+        from_ndc: bool = False,
+        **kwargs
     ) -> torch.Tensor:
+        """
+        Args:
+            from_ndc: If `False` (default), assumes xy part of input is in
+                NDC space if self.in_ndc(), otherwise in screen space. If
+                `True`, assumes xy is in NDC space even if the camera
+                is defined in screen space.
+        """
         if world_coordinates:
             to_camera_transform = self.get_full_projection_transform(**kwargs)
         else:
             to_camera_transform = self.get_projection_transform(**kwargs)
+        if from_ndc:
+            to_camera_transform = to_camera_transform.compose(
+                self.get_ndc_camera_transform()
+            )
 
         unprojection_transform = to_camera_transform.inverse()
         return unprojection_transform.transform_points(xy_depth)
@@ -1584,12 +1624,12 @@ def get_ndc_to_screen_transform(
     # For non square images, we scale the points such that smallest side
     # has range [-1, 1] and the largest side has range [-u, u], with u > 1.
     # This convention is consistent with the PyTorch3D renderer
-    scale = (image_size.min(dim=1).values - 1.0) / 2.0
+    scale = (image_size.min(dim=1).values - 0.0) / 2.0
 
     K[:, 0, 0] = scale
     K[:, 1, 1] = scale
-    K[:, 0, 3] = -1.0 * (width - 1.0) / 2.0
-    K[:, 1, 3] = -1.0 * (height - 1.0) / 2.0
+    K[:, 0, 3] = -1.0 * (width - 0.0) / 2.0
+    K[:, 1, 3] = -1.0 * (height - 0.0) / 2.0
     K[:, 2, 2] = 1.0
     K[:, 3, 3] = 1.0
 

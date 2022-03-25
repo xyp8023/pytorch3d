@@ -97,7 +97,7 @@ In alphabetical order:
 * Georgia Gkioxari
 * Taylor Gordon
 * Justin Johnson
-* Patrick Labtut
+* Patrick Labatut
 * Christoph Lassner
 * Wan-Yen Lo
 * David Novotny
@@ -135,6 +135,10 @@ If you are using the pulsar backend for sphere-rendering (the `PulsarPointRender
 ## News
 
 Please see below for a timeline of the codebase updates in reverse chronological order. We are sharing updates on the releases as well as research projects which are built with PyTorch3D. The changelogs for the releases are available under [`Releases`](https://github.com/facebookresearch/pytorch3d/releases),  and the builds can be installed using `conda` as per the instructions in [INSTALL.md](INSTALL.md).
+
+**[Oct 6th 2021]:**   PyTorch3D [v0.6.0](https://github.com/facebookresearch/pytorch3d/releases/tag/v0.6.0) released
+
+**[Aug 5th 2021]:**   PyTorch3D [v0.5.0](https://github.com/facebookresearch/pytorch3d/releases/tag/v0.5.0) released
 
 **[Feb 9th 2021]:** PyTorch3D [v0.4.0](https://github.com/facebookresearch/pytorch3d/releases/tag/v0.4.0) released with support for implicit functions, volume rendering and a [reimplementation of NeRF](https://github.com/facebookresearch/pytorch3d/tree/main/projects/nerf).
 

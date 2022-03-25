@@ -96,10 +96,7 @@ class GridRaysampler(torch.nn.Module):
             ),
             dim=-1,
         )
-        try:
-            self.register_buffer("_xy_grid", _xy_grid, persistent=False)
-        except TypeError:
-            self.register_buffer("_xy_grid", _xy_grid)  # workaround for pytorch<1.6
+        self.register_buffer("_xy_grid", _xy_grid, persistent=False)
 
     def forward(self, cameras: CamerasBase, **kwargs) -> RayBundle:
         """
@@ -142,8 +139,8 @@ class NDCGridRaysampler(GridRaysampler):
     have uniformly-spaced z-coordinates between a predefined minimum and maximum depth.
 
     `NDCGridRaysampler` follows the screen conventions of the `Meshes` and `Pointclouds`
-    renderers. I.e. the border of the leftmost / rightmost / topmost / bottommost pixel
-    has coordinates 1.0 / -1.0 / 1.0 / -1.0 respectively.
+    renderers. I.e. the pixel coordinates are in [-1, 1]x[-u, u] or [-u, u]x[-1, 1]
+    where u > 1 is the aspect ratio of the image.
     """
 
     def __init__(
@@ -162,13 +159,20 @@ class NDCGridRaysampler(GridRaysampler):
             min_depth: The minimum depth of a ray-point.
             max_depth: The maximum depth of a ray-point.
         """
-        half_pix_width = 1.0 / image_width
-        half_pix_height = 1.0 / image_height
+        if image_width >= image_height:
+            range_x = image_width / image_height
+            range_y = 1.0
+        else:
+            range_x = 1.0
+            range_y = image_height / image_width
+
+        half_pix_width = range_x / image_width
+        half_pix_height = range_y / image_height
         super().__init__(
-            min_x=1.0 - half_pix_width,
-            max_x=-1.0 + half_pix_width,
-            min_y=1.0 - half_pix_height,
-            max_y=-1.0 + half_pix_height,
+            min_x=range_x - half_pix_width,
+            max_x=-range_x + half_pix_width,
+            min_y=range_y - half_pix_height,
+            max_y=-range_y + half_pix_height,
             image_width=image_width,
             image_height=image_height,
             n_pts_per_ray=n_pts_per_ray,
@@ -298,7 +302,7 @@ def _xy_to_ray_bundle(
             .reshape(batch_size, n_rays_per_image * 2, 2),
             torch.cat(
                 (
-                    xy_grid.new_ones(batch_size, n_rays_per_image, 1),  # pyre-ignore
+                    xy_grid.new_ones(batch_size, n_rays_per_image, 1),
                     2.0 * xy_grid.new_ones(batch_size, n_rays_per_image, 1),
                 ),
                 dim=1,
@@ -308,7 +312,7 @@ def _xy_to_ray_bundle(
     )
 
     # unproject the points
-    unprojected = cameras.unproject_points(to_unproject)  # pyre-ignore
+    unprojected = cameras.unproject_points(to_unproject, from_ndc=True)  # pyre-ignore
 
     # split the two planes back
     rays_plane_1_world = unprojected[:, :n_rays_per_image]

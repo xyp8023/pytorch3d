@@ -19,8 +19,6 @@ import yaml
 # version of pytorch.
 # Pytorch 1.4 also supports cuda 10.0 but we no longer build for cuda 10.0 at all.
 CONDA_CUDA_VERSIONS = {
-    "1.5.0": ["cu92", "cu101", "cu102"],
-    "1.5.1": ["cu92", "cu101", "cu102"],
     "1.6.0": ["cu92", "cu101", "cu102"],
     "1.7.0": ["cu101", "cu102", "cu110"],
     "1.7.1": ["cu101", "cu102", "cu110"],
@@ -28,7 +26,14 @@ CONDA_CUDA_VERSIONS = {
     "1.8.1": ["cu101", "cu102", "cu111"],
     "1.9.0": ["cu102", "cu111"],
     "1.9.1": ["cu102", "cu111"],
+    "1.10.0": ["cu102", "cu111", "cu113"],
 }
+
+
+def conda_docker_image_for_cuda(cuda_version):
+    if cuda_version == "cu113":
+        return "pytorch/conda-builder:cuda113"
+    return None
 
 
 def pytorch_versions_for_python(python_version):
@@ -114,6 +119,10 @@ def generate_base_workflow(
         "pytorch_version": pytorch_version,
         "context": "DOCKERHUB_TOKEN",
     }
+
+    conda_docker_image = conda_docker_image_for_cuda(cu_version)
+    if conda_docker_image is not None:
+        d["conda_docker_image"] = conda_docker_image
 
     if filter_branch is not None:
         d["filters"] = {"branches": {"only": filter_branch}}
