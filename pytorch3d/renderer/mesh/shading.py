@@ -12,6 +12,48 @@ from pytorch3d.ops import interpolate_face_attributes
 
 from .textures import TexturesVertex
 
+def _apply_lighting_4sss(
+    points, normals, lights, cameras, materials
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Args:
+        points: torch tensor of shape (N, ..., 3) or (P, 3).
+        normals: torch tensor of shape (N, ..., 3) or (P, 3)
+        lights: instance of the Lights class.
+        cameras: instance of the Cameras class.
+        materials: instance of the Materials class.
+
+    Returns:
+        # ambient_color: same shape as materials.ambient_color
+        diffuse_color: same shape as the input points
+        # specular_color: same shape as the input points
+    """
+    # (N, H, W, K, 3)
+    light_diffuse = lights.diffuse(normals=normals, points=points)
+    # light_specular = lights.specular(
+    #     normals=normals,
+    #     points=points,
+    #     camera_position=cameras.get_camera_center(),
+    #     shininess=materials.shininess,
+    # )
+    # ambient_color = materials.ambient_color * lights.ambient_color
+    diffuse_color = materials.diffuse_color[...,0] * light_diffuse[...,0]
+    # specular_color = materials.specular_color * light_specular
+
+    if normals.dim() == 2 and points.dim() == 2:
+        # If given packed inputs remove batch dim in output.
+        return (
+            ambient_color.squeeze(),
+            diffuse_color.squeeze(),
+            specular_color.squeeze(),
+        )
+
+    # if ambient_color.ndim != diffuse_color.ndim:
+        # Reshape from (N, 3) to have dimensions compatible with
+        # diffuse_color which is of shape (N, H, W, K, 3)
+        # ambient_color = ambient_color[:, None, None, None, :]
+    # return ambient_color, diffuse_color, specular_color
+    return diffuse_color #(N, H, W, K)
 
 def _apply_lighting(
     points, normals, lights, cameras, materials
