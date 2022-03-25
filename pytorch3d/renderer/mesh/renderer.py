@@ -142,6 +142,6 @@ class MeshRendererWithFragments4SSS(nn.Module):
         For this set rasterizer.raster_settings.clip_barycentric_coords=True
         """
         fragments = self.rasterizer(meshes_world, **kwargs)
-        colors, fragments = self.shader(fragments, meshes_world, **kwargs) # SoftPhongShader4SSS ONLY
+        images = self.shader(fragments, meshes_world, **kwargs) # SoftPhongShader4SSS ONLY
 
-        return colors, fragments
+        return images, fragments
