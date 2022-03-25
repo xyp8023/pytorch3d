@@ -236,3 +236,93 @@ def softmax_rgb_blend(
     pixel_colors[..., 3] = 1.0 - alpha
 
     return pixel_colors
+
+def nan_to_num(y, num=0.0):
+    """Helper to handle indices and logical indices of NaNs.
+
+    """
+    y[torch.isnan(y)]=num
+    return y
+
+def zeros_to_num(y, num=1.0):
+    """Helper to handle indices and logical indices of zeros.
+
+    """
+    y[y==0]=num
+    return y
+
+def softmax_sss_blend_p(
+    colors: torch.Tensor,
+    fragments,
+    blend_params: BlendParams,
+    **kwargs    
+) -> torch.Tensor:
+    """
+    In parallel!
+
+    SSS intensity blending to return an SSS image based on the method
+    proposed in [1]
+      - **SSS** - blend the colors based on the 2D distance based probability map and
+        relative z distances.
+    Args:
+        colors: (N, H, W, K) intensity color for each of the top K faces per pixel.
+        fragments: namedtuple with outputs of rasterization. We use properties
+            - pix_to_face: LongTensor of shape (N, H, W, K) specifying the indices
+              of the faces (in the packed representation) which
+              overlap each pixel in the image.
+            - dists: FloatTensor of shape (N, H, W, K) specifying
+              the 2D euclidean distance from the center of each pixel
+              to each of the top K overlapping faces.
+            - zbuf: FloatTensor of shape (N, H, W, K) specifying
+              the interpolated depth from each pixel to to each of the
+              top K overlapping faces.
+        blend_params: instance of BlendParams dataclass containing properties
+            - sigma: float, parameter which controls the width of the sigmoid
+              function used to calculate the 2D distance based probability.
+              Sigma controls the sharpness of the edges of the shape.
+            - gamma: float, parameter which controls the scaling of the
+              exponential function used to control the opacity of the color.
+
+
+    Returns:
+        
+        SSS (N, nbr_time_bins) 
+    [0] Shichen Liu et al, 'Soft Rasterizer: A Differentiable Renderer for
+    Image-based 3D Reasoning'
+    """
+    N, H, W, K = fragments.pix_to_face.shape # H corresponds to the vertical beam angle; W corresponds to the horizontal beam angle
+    device = fragments.pix_to_face.device
+    nbr_time_bins = kwargs.get("nbr_time_bins", 256) 
+    max_slant_range = kwargs.get("max_slant_range", 50.0)
+    beam_pattern = kwargs.get("beam_pattern", torch.ones((1,1,W,1))).to(device) # pixel_colors: (N, H, W, nbr_time_bins)
+
+    sss_rendered = torch.zeros((N, nbr_time_bins), dtype=colors.dtype, device=colors.device)
+    
+    # Weight for background color
+    eps = 1e-10
+    mask = torch.logical_and((fragments.pix_to_face >= 0), fragments.zbuf<=max_slant_range)
+    mask = torch.logical_and(mask, (fragments.dists>-1)) # dists==-1 the same as pix_to_face<0; dists<-1 bug? when the fov is too small 
+    prob_map = torch.sigmoid(-fragments.dists / blend_params.sigma) * mask  # (N, H, W, K)
+    # The cumulative product ensures that alpha will be 0.0 if at least 1
+    # face fully covers the pixel as for that face, prob will be 1.0.
+    # This results in a multiplication by 0.0 because of the (1.0 - prob)
+    # term. Therefore 1.0 - alpha will be 1.0.
+    # alpha = torch.prod((1.0 - prob_map), dim=-1)  # (N, H, W)
+    prob_map = prob_map.unsqueeze(-1) # (N,H,W,K,1)
+    slant_range = (torch.arange(0.5, nbr_time_bins+0.5, dtype=torch.float32, device=colors.device)/nbr_time_bins*max_slant_range).expand(1,1,1,1,-1) # # (1,1,1,1,nbr_time_bins)
+    z_diff = (fragments.zbuf.unsqueeze(-1) - slant_range ) /max_slant_range * mask.unsqueeze(-1) # # (N, H, W, K, nbr_time_bins)
+    kernel = torch.exp(-z_diff**2 / blend_params.gamma)  # (N, H, W, K, nbr_time_bins)
+    weights_num = prob_map *kernel # (N, H, W, K, nbr_time_bins)
+    denom = weights_num.sum(dim=-2) # no background color # (N, H, W, nbr_time_bins)
+    denom_mask = denom>eps
+    weighted_colors = (weights_num * colors.unsqueeze(-1)).sum(dim=-2) # (N,H,W,nbr_time_bins)
+    pixel_colors = torch.zeros((N, H, W, nbr_time_bins), dtype=colors.dtype, device=colors.device)
+    pixel_colors[denom_mask] = (weighted_colors[denom_mask]) / denom[denom_mask]
+    pixel_colors = nan_to_num(pixel_colors) # (N, H, W, nbr_time_bins)
+    pixel_colors = pixel_colors * beam_pattern # (N, H, W, nbr_time_bins)
+    # TODO apply kernel w.r.t angles to get rid of the dip in front of the dome
+    
+    sss_rendered=torch.mean(pixel_colors**2, axis=(1,2))# mean TODO let's see what happens
+    
+    return sss_rendered
+

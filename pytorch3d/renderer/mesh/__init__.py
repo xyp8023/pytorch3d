@@ -13,7 +13,7 @@ from .clip import (
 )
 from .rasterize_meshes import rasterize_meshes
 from .rasterizer import MeshRasterizer, RasterizationSettings
-from .renderer import MeshRenderer
+from .renderer import MeshRenderer, MeshRendererWithFragments4SSS
 from .shader import TexturedSoftPhongShader  # DEPRECATED
 from .shader import (
     BlendParams,
@@ -22,9 +22,10 @@ from .shader import (
     HardPhongShader,
     SoftGouraudShader,
     SoftPhongShader,
+    SoftPhongShader4SSS,
     SoftSilhouetteShader,
 )
-from .shading import gouraud_shading, phong_shading
+from .shading import gouraud_shading, phong_shading, diffuse_phong_shading_4sss
 from .textures import Textures  # DEPRECATED
 from .textures import TexturesAtlas, TexturesBase, TexturesUV, TexturesVertex
 

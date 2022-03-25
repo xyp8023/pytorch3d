@@ -9,6 +9,7 @@ from .blending import (
     hard_rgb_blend,
     sigmoid_alpha_blend,
     softmax_rgb_blend,
+    softmax_sss_blend_p,
 )
 from .camera_utils import rotate_on_spot
 from .cameras import OpenGLOrthographicCameras  # deprecated
@@ -46,9 +47,11 @@ from .mesh import (
     HardPhongShader,
     MeshRasterizer,
     MeshRenderer,
+    MeshRendererWithFragments4SSS,
     RasterizationSettings,
     SoftGouraudShader,
     SoftPhongShader,
+    SoftPhongShader4SSS,
     SoftSilhouetteShader,
     Textures,
     TexturesAtlas,
@@ -56,6 +59,7 @@ from .mesh import (
     TexturesVertex,
     gouraud_shading,
     phong_shading,
+    diffuse_phong_shading_4sss,
     rasterize_meshes,
 )
 from .points import (
