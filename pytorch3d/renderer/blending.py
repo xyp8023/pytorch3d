@@ -295,12 +295,15 @@ def softmax_sss_blend_p(
     nbr_time_bins = kwargs.get("nbr_time_bins", 256) 
     max_slant_range = kwargs.get("max_slant_range", 50.0)
     beam_pattern = kwargs.get("beam_pattern", torch.ones((1,1,W,1))).to(device) # pixel_colors: (N, H, W, nbr_time_bins)
+    topk_angles = kwargs.get("topk_angles", 10)  
+    eps_ = kwargs.get("eps_", 1e-6)  
+    valid_mean = kwargs.get("valid_mean", False)  
+    
 
     sss_rendered = torch.zeros((N, nbr_time_bins), dtype=colors.dtype, device=colors.device)
     
     # Weight for background color
-    eps = 1e-10
-    mask = torch.logical_and((fragments.pix_to_face >= 0), fragments.zbuf<=max_slant_range)
+    mask = torch.logical_and((fragments.pix_to_face >= 0), fragments.zbuf<=max_slant_range+max_slant_range/nbr_time_bins)
     mask = torch.logical_and(mask, (fragments.dists>-1)) # dists==-1 the same as pix_to_face<0; dists<-1 bug? when the fov is too small 
     prob_map = torch.sigmoid(-fragments.dists / blend_params.sigma) * mask  # (N, H, W, K)
     # The cumulative product ensures that alpha will be 0.0 if at least 1
@@ -311,18 +314,24 @@ def softmax_sss_blend_p(
     prob_map = prob_map.unsqueeze(-1) # (N,H,W,K,1)
     slant_range = (torch.arange(0.5, nbr_time_bins+0.5, dtype=torch.float32, device=colors.device)/nbr_time_bins*max_slant_range).expand(1,1,1,1,-1) # # (1,1,1,1,nbr_time_bins)
     z_diff = (fragments.zbuf.unsqueeze(-1) - slant_range ) /max_slant_range * mask.unsqueeze(-1) # # (N, H, W, K, nbr_time_bins)
-    kernel = torch.exp(-z_diff**2 / blend_params.gamma)  # (N, H, W, K, nbr_time_bins)
-    weights_num = prob_map *kernel # (N, H, W, K, nbr_time_bins)
+    kernel = torch.exp(-z_diff**2 / blend_params.gamma)  * (kernel>eps_**2) # (N, H, W, K, nbr_time_bins)
+    weights_num = prob_map *kernel * (kernel>eps_**2) # (N, H, W, K, nbr_time_bins)
     denom = weights_num.sum(dim=-2) # no background color # (N, H, W, nbr_time_bins)
-    denom_mask = denom>eps
+    denom_mask = denom>eps_
     weighted_colors = (weights_num * colors.unsqueeze(-1)).sum(dim=-2) # (N,H,W,nbr_time_bins)
     pixel_colors = torch.zeros((N, H, W, nbr_time_bins), dtype=colors.dtype, device=colors.device)
     pixel_colors[denom_mask] = (weighted_colors[denom_mask]) / denom[denom_mask]
-    pixel_colors = nan_to_num(pixel_colors) # (N, H, W, nbr_time_bins)
+    # pixel_colors = nan_to_num(pixel_colors) # (N, H, W, nbr_time_bins)
     pixel_colors = pixel_colors * beam_pattern # (N, H, W, nbr_time_bins)
-    # TODO apply kernel w.r.t angles to get rid of the dip in front of the dome
-    
-    sss_rendered=torch.mean(pixel_colors**2, axis=(1,2))# mean TODO let's see what happens
+    # apply kernel w.r.t angles to get rid of the dip in front of the dome
+    values, _ = torch.topk(pixel_colors,k=topk_angles,dim=1) # (N,topk_angles,W,nbr_time_bins)
+    if not valid_mean:
+        sss_rendered=torch.mean(values, axis=(1,2))# mean TODO let's see what happens
+    esle:
+        sss_rendered=torch.sum(values, axis=(1,2))# valid mean TODO let's see what happens
+        valid_mask_sum = (values>0).sum(dim=(1,2))# (N,nbr_time_bins)
+        sss_rendered[valid_mask_sum!=0] = sss_rendered[valid_mask_sum!=0]/valid_mask_sum[valid_mask_sum!=0]
+    # sss_rendered=torch.mean(pixel_colors**2, axis=(1,2))# mean TODO let's see what happens
     
     return sss_rendered
 
