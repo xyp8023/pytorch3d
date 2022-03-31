@@ -314,7 +314,7 @@ def softmax_sss_blend_p(
     prob_map = prob_map.unsqueeze(-1) # (N,H,W,K,1)
     slant_range = (torch.arange(0.5, nbr_time_bins+0.5, dtype=torch.float32, device=colors.device)/nbr_time_bins*max_slant_range).expand(1,1,1,1,-1) # # (1,1,1,1,nbr_time_bins)
     z_diff = (fragments.zbuf.unsqueeze(-1) - slant_range ) /max_slant_range * mask.unsqueeze(-1) # # (N, H, W, K, nbr_time_bins)
-    kernel = torch.exp(-z_diff**2 / blend_params.gamma)  * (kernel>eps_**2) # (N, H, W, K, nbr_time_bins)
+    kernel = torch.exp(-z_diff**2 / blend_params.gamma)   # (N, H, W, K, nbr_time_bins)
     weights_num = prob_map *kernel * (kernel>eps_**2) # (N, H, W, K, nbr_time_bins)
     denom = weights_num.sum(dim=-2) # no background color # (N, H, W, nbr_time_bins)
     denom_mask = denom>eps_
