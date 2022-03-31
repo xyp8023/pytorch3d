@@ -327,7 +327,7 @@ def softmax_sss_blend_p(
     values, _ = torch.topk(pixel_colors,k=topk_angles,dim=1) # (N,topk_angles,W,nbr_time_bins)
     if not valid_mean:
         sss_rendered=torch.mean(values, axis=(1,2))# mean TODO let's see what happens
-    esle:
+    else:
         sss_rendered=torch.sum(values, axis=(1,2))# valid mean TODO let's see what happens
         valid_mask_sum = (values>0).sum(dim=(1,2))# (N,nbr_time_bins)
         sss_rendered[valid_mask_sum!=0] = sss_rendered[valid_mask_sum!=0]/valid_mask_sum[valid_mask_sum!=0]
