@@ -222,7 +222,7 @@ class SoftPhongShader4SSS(nn.Module):
             materials=materials,
         )
         sss = softmax_sss_blend_p(
-            colors, fragments, blend_params
+            colors, fragments, blend_params, **kwargs
         )
         
         return sss
