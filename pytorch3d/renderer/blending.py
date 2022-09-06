@@ -294,7 +294,9 @@ def softmax_sss_blend_p(
     device = fragments.pix_to_face.device
     nbr_time_bins = kwargs.get("nbr_time_bins", 256) 
     max_slant_range = kwargs.get("max_slant_range", 50.0)
-    beam_pattern = kwargs.get("beam_pattern", torch.ones((1,1,W,1))).to(device) # pixel_colors: (N, H, W, nbr_time_bins)
+    # beam_pattern = kwargs.get("beam_pattern", torch.ones((1,1,W,1))).to(device) # pixel_colors: (N, H, W, nbr_time_bins)
+    beam_pattern = kwargs.get("beam_pattern", torch.ones((nbr_time_bins,), device=colors.device)) # if given, should have shape (nbr_time_bins,)
+
     topk_angles = kwargs.get("topk_angles", 10)  
     eps_ = kwargs.get("eps_", 1e-6)  
     valid_mean = kwargs.get("valid_mean", False)  
@@ -332,6 +334,6 @@ def softmax_sss_blend_p(
         valid_mask_sum = (values>0).sum(dim=(1,2))# (N,nbr_time_bins)
         sss_rendered[valid_mask_sum!=0] = sss_rendered[valid_mask_sum!=0]/valid_mask_sum[valid_mask_sum!=0]
     # sss_rendered=torch.mean(pixel_colors**2, axis=(1,2))# mean TODO let's see what happens
-    
+    sss_rendered = sss_rendered * beam_pattern
     return sss_rendered
 
