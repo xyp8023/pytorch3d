@@ -48,6 +48,7 @@ from .mesh import (
     MeshRasterizer,
     MeshRenderer,
     MeshRendererWithFragments4SSS,
+    MeshRenderer4SSS,
     RasterizationSettings,
     SoftGouraudShader,
     SoftPhongShader,
